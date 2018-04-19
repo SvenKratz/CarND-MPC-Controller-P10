@@ -25,7 +25,13 @@ I use the basic model update equations given in Lesson 20:
 
 ![Model Equations](images/model.png)
 
-It models car movement, acceleration and turning and also incorporates CTE and orientation error.
+It models car movement, acceleration and turning and also incorporates CTE and orientation error, where:
+- x is the  x position of the vehicle
+- y is the  y position of the vehicle
+- psi is the  orientation of the vehicle
+- v is the speed of the vehicle
+- cte is the cross-track error of the vehicle
+- e_psi is the current orientation error (orientation - desired orientation) of the vehicle  
 
 ### Actuators
 Actuators are turning and acceleration, the two functions that the car provides.
@@ -54,12 +60,31 @@ for (int i = 0; i < ptsx.size(); i++) {
 
 ### Latency
 
-I adjust the actuations by looking at calculating a weighted sum of the state from t-2 and a weighted actuation difference of states t-2 and t-1 during constraint setup. The following code deals with latency in my MPC controller (line 112):
+I originally adjust the actuations by looking at calculating a weighted sum of the state from t-2 and a weighted actuation difference of states t-2 and t-1 during constraint setup. However, as pointed out by a previous reviewer this kind of interpolation is not theoretically correct and doesn't reflect the spirit of actually modeling the vehicle state.
+
+Therefore, following the reviewer's suggestion I modeled latency via a single prediction step prior to having the MPC controller calculate the solution.
+
+I found that at low speeds, this leads to overcompensating and high oscillations, but it is very beneficial at high vehicle speeds. Thus I added a proportional weighting of the magnitude dependent on v, which lowers the prediction effect at slow speeds and increases it at high speeds. The result is a fairly smooth ride throughout all speed ranges. The following code shows how I dealt with latency:
 
 ```
-// take previous actuations into account to mitigate latency
-if (t > 1) {   
-  a = 0.8 * vars[a_start + t - 2] +  0.2 * (vars[a_start + t - 2] - vars[a_start + t - 1]);
-  delta = 0.8 * vars[delta_start + t - 2] + 0.2 * (vars[delta_start + t - 2] - vars[delta_start + t - 1])  ;
-}
+// damping coefficient
+// reduce the magnitude of latency update
+// at low speeds latency is not such a factor
+//v *= 0.4407;
+const double min_damp_spd = 140;
+const double damp = 0.95 / min_damp_spd * v  + 0.05;
+//const double damp = 1.0;
+
+// calculate acceleration
+const double a = v - last_v;
+last_v = v;
+//const double damp = 1.0;
+//to convert miles per hour to meter per second, and you should convert ref_v too
+psi = delta; // in coordinate now, so use steering angle to predict x and y
+px =  damp * (v*cos(-psi)*latency);
+py =  damp * (v*sin(-psi)*latency);
+cte = damp * (cte + v*sin(epsi)*latency);
+epsi = damp * (epsi + v*delta*latency/Lf);
+psi = damp * (psi + v*delta*latency/Lf);
+v = v + damp * ( a * latency);
 ```
