@@ -1,0 +1,3 @@
+/Users/svenkratz/selfdriving_car_nd/Term2/CarND-MPC-Controller-P10/build/CMakeFiles/rebuild_cache.dir
+/Users/svenkratz/selfdriving_car_nd/Term2/CarND-MPC-Controller-P10/build/CMakeFiles/edit_cache.dir
+/Users/svenkratz/selfdriving_car_nd/Term2/CarND-MPC-Controller-P10/build/CMakeFiles/mpc.dir

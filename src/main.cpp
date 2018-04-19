@@ -17,6 +17,9 @@ constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
 double rad2deg(double x) { return x * 180 / pi(); }
 
+
+double last_v = 0;
+
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
@@ -127,9 +130,42 @@ int main() {
           double epsi = -atan(coeffs[1]); // psi is 0 (internal reference frame)
 
 
+          // add a single prediction step to compensate for latency
+          // using our system latency of 100ms
+          // i.e., we predict the state 100ms in the future to compensate
+          // for latency
+
+          //  change of sign because turning left is negative sign in simulator but positive yaw for MPC
+          double delta =  j[1]["steering_angle"];
+          delta *= -1;
+          const double latency = 0.1;
+          const double Lf = 2.67;
+
+          // damping coefficient
+          // reduce the magnitude of latency update
+          // at low speeds latency is not such a factor
+          //v *= 0.4407;
+          const double min_damp_spd = 140;
+          const double damp = 0.95 / min_damp_spd * v  + 0.05;
+          //const double damp = 1.0;
+
+          // calculate acceleration
+          const double a = v - last_v;
+          last_v = v;
+          //const double damp = 1.0;
+          //to convert miles per hour to meter per second, and you should convert ref_v too
+          psi = delta; // in coordinate now, so use steering angle to predict x and y
+          px =  damp * (v*cos(-psi)*latency);
+          py =  damp * (v*sin(-psi)*latency);
+          cte = damp * (cte + v*sin(epsi)*latency);
+          epsi = damp * (epsi + v*delta*latency/Lf);
+          psi = damp * (psi + v*delta*latency/Lf);
+          v = v + damp * ( a * latency);
+
+
 
           Eigen::VectorXd state(6);
-          state << 0, 0, 0, v, cte, epsi;
+          state << px, py, psi, v, cte, epsi;
 
           cout << "State Vector " << state << endl;
 
